@@ -15,18 +15,23 @@
 # limitations under the License.
 #
 
-ARG java_image_tag=8-jdk-focal
-FROM eclipse-temurin:${java_image_tag}
+name: "Deploy Website"
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements.txt"
 
-ARG rss_version=0.1.1
-
-USER root
-
-RUN set -ex && \
-    apt-get update && \
-    apt-get install -y bash tini busybox bind9-utils telnet net-tools procps krb5-user dnsutils && \
-    ln -snf /bin/bash /bin/sh && \
-    rm -rf /var/cache/apt/* && \
-    mkdir -p /opt/
-
-ADD rss-${rss_version}-bin-release.tgz /opt/
+jobs:
+  run-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+      - run: pip install -r requirements.txt
+      - run: mkdocs gh-deploy --force

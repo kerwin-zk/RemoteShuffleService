@@ -15,18 +15,39 @@
 # limitations under the License.
 #
 
-ARG java_image_tag=8-jdk-focal
-FROM eclipse-temurin:${java_image_tag}
+site_name: Remote Shuffle Service
+repo_name: alibaba/RemoteShuffleService
+repo_url: https://github.com/alibaba/RemoteShuffleService
 
-ARG rss_version=0.1.1
+plugins:
+  - search
+  - macros
 
-USER root
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.indexes
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
 
-RUN set -ex && \
-    apt-get update && \
-    apt-get install -y bash tini busybox bind9-utils telnet net-tools procps krb5-user dnsutils && \
-    ln -snf /bin/bash /bin/sh && \
-    rm -rf /var/cache/apt/* && \
-    mkdir -p /opt/
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
 
-ADD rss-${rss_version}-bin-release.tgz /opt/
+extra:
+  version: 0.2.0-SNAPSHOT
+  stable_version: 0.1.2
+  social:
+    - icon: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Configuration:
+      - configuration.md
+  - Contributor:
+      - Docs and Website: contrib/docs_and_website.md

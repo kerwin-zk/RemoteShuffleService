@@ -15,19 +15,30 @@
  * limitations under the License.
  */
 
-package com.aliyun.emr.rss.client.compress;
+package com.aliyun.emr.rss.server.common
 
-public abstract class RssZstdTrait {
-  protected static final byte[] MAGIC = new byte[] {'Z', 'S', 'T', 'D', 'B', 'l', 'o', 'c', 'k'};
-  protected static final int MAGIC_LENGTH = MAGIC.length;
+import com.aliyun.emr.rss.common.RssConf
+import com.aliyun.emr.rss.common.internal.Logging
+import com.aliyun.emr.rss.common.metrics.MetricsSystem
 
-  public static final int HEADER_LENGTH =
-      MAGIC_LENGTH // magic bytes
-          + 1 // compress method
-          + 4 // compressed length
-          + 4 // decompressed length
-          + 4; // checksum
+abstract class Service extends Logging {
+  def serviceName: String
 
-  protected static final int COMPRESSION_METHOD_RAW = 0x10;
-  protected static final int COMPRESSION_METHOD_ZSTD = 0x30;
+  def conf: RssConf
+
+  def metricsSystem: MetricsSystem
+
+  def initialize(): Unit = {
+    if (RssConf.metricsSystemEnable(conf)) {
+      logInfo(s"Metrics system enabled.")
+      metricsSystem.start()
+    }
+  }
+
+  def close(): Unit
+}
+
+object Service {
+  val MASTER = "master"
+  val WORKER = "worker"
 }

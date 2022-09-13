@@ -41,13 +41,18 @@ import com.aliyun.emr.rss.common.protocol.message.ControlMessages._
 import com.aliyun.emr.rss.common.rpc._
 import com.aliyun.emr.rss.common.util.{ThreadUtils, Utils}
 import com.aliyun.emr.rss.common.util.ShutdownHookManager
-import com.aliyun.emr.rss.server.common.http.{HttpServer, HttpServerInitializer}
-import com.aliyun.emr.rss.service.deploy.worker.http.HttpRequestHandler
+import com.aliyun.emr.rss.server.common.{HttpService, Service}
 import com.aliyun.emr.rss.service.deploy.worker.storage.{PartitionFilesSorter, StorageManager}
 
 private[deploy] class Worker(
-    val conf: RssConf,
-    val workerArgs: WorkerArguments) extends Logging {
+    override val conf: RssConf,
+    val workerArgs: WorkerArguments)
+  extends HttpService with Logging {
+
+  override def serviceName: String = Service.WORKER
+
+  override val metricsSystem =
+    MetricsSystem.createMetricsSystem(serviceName, conf, WorkerSource.ServletPath)
 
   val rpcEnv = RpcEnv.create(
     RpcNameConstants.WORKER_SYS,
@@ -70,7 +75,6 @@ private[deploy] class Worker(
       RssConf.pushServerPort(conf) != 0 && RssConf.replicateServerPort(conf) != 0),
     "If enable graceful shutdown, the worker should use stable server port.")
 
-  val metricsSystem = MetricsSystem.createMetricsSystem("worker", conf, WorkerSource.ServletPath)
   val rpcSource = new RPCSource(conf, MetricsSystem.ROLE_WORKER)
   val workerSource = new WorkerSource(conf)
   metricsSystem.registerSource(workerSource)
@@ -186,6 +190,8 @@ private[deploy] class Worker(
   workerSource.addGauge(WorkerSource.SlotsAllocated, _ => workerInfo.allocationsInLastHour())
   workerSource.addGauge(WorkerSource.SortMemory, _ => memoryTracker.getSortMemoryCounter.get())
   workerSource.addGauge(WorkerSource.SortingFiles, _ => partitionsSorter.getSortingCount)
+  workerSource.addGauge(WorkerSource.SortedFiles, _ => partitionsSorter.getSortedCount)
+  workerSource.addGauge(WorkerSource.SortedFileSize, _ => partitionsSorter.getSortedSize)
   workerSource.addGauge(WorkerSource.DiskBuffer, _ => memoryTracker.getDiskBufferCounter.get())
   workerSource.addGauge(WorkerSource.NettyMemory, _ => memoryTracker.getNettyMemoryCounter.get())
   workerSource.addGauge(WorkerSource.PausePushDataCount, _ => memoryTracker.getPausePushDataCounter)
@@ -230,7 +236,8 @@ private[deploy] class Worker(
     }
   }
 
-  def init(): Unit = {
+  override def initialize(): Unit = {
+    super.initialize()
     logInfo(s"Starting Worker $host:$pushPort:$fetchPort:$replicatePort" +
       s" with ${workerInfo.diskInfos} slots.")
     registerWithMaster()
@@ -260,22 +267,6 @@ private[deploy] class Worker(
       REPLICATE_FAST_FAIL_DURATION,
       TimeUnit.MILLISECONDS)
 
-    val handlers =
-      if (RssConf.metricsSystemEnable(conf)) {
-        logInfo(s"Metrics system enabled.")
-        metricsSystem.start()
-        new HttpRequestHandler(this, metricsSystem.getPrometheusHandler)
-      } else {
-        new HttpRequestHandler(this, null)
-      }
-    val httpServer = new HttpServer(
-      "worker",
-      RssConf.workerPrometheusMetricHost(conf),
-      RssConf.workerPrometheusMetricPort(conf),
-      new HttpServerInitializer(handlers))
-
-    httpServer.start()
-
     cleaner = new Thread("Cleaner") {
       override def run(): Unit = {
         while (true) {
@@ -299,10 +290,9 @@ private[deploy] class Worker(
     cleaner.start()
 
     rpcEnv.awaitTermination()
-    System.exit(0)
   }
 
-  def stop(): Unit = {
+  override def close(): Unit = {
     logInfo("Stopping RSS Worker.")
 
     if (sendHeartbeatTask != null) {
@@ -377,7 +367,15 @@ private[deploy] class Worker(
     storageManager.cleanupExpiredShuffleKey(expiredShuffleKeys)
   }
 
-  def getShuffleList: String = {
+  override def getWorkerInfo: String = workerInfo.toString()
+
+  override def getThreadDump: String = Utils.getThreadDump()
+
+  override def getHostnameList: String = throw new UnsupportedOperationException()
+
+  override def getApplicationList: String = throw new UnsupportedOperationException()
+
+  override def getShuffleList: String = {
     storageManager.shuffleKeySet().asScala.mkString("\n")
   }
 
@@ -409,7 +407,7 @@ private[deploy] class Worker(
               s"unreleased PartitionLocation: \n$partitionLocationInfo")
           }
         }
-        stop()
+        close()
       }
     }),
     WORKER_SHUTDOWN_PRIORITY)
@@ -428,6 +426,6 @@ private[deploy] object Worker extends Logging {
     }
 
     val worker = new Worker(conf, workerArgs)
-    worker.init()
+    worker.initialize()
   }
 }

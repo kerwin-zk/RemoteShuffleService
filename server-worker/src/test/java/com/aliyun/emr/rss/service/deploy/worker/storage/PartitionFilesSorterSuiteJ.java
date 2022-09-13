@@ -90,9 +90,15 @@ public class PartitionFilesSorterSuiteJ {
       Platform.putInt(batchHeader, Platform.BYTE_ARRAY_OFFSET + 4, currentAttemptId);
       Platform.putInt(batchHeader, Platform.BYTE_ARRAY_OFFSET + 8, batchId);
       Platform.putInt(batchHeader, Platform.BYTE_ARRAY_OFFSET + 12, dataSize);
-      channel.write(ByteBuffer.wrap(batchHeader));
+      ByteBuffer buf1 = ByteBuffer.wrap(batchHeader);
+      while (buf1.hasRemaining()) {
+        channel.write(buf1);
+      }
       random.nextBytes(mockedData);
-      channel.write(ByteBuffer.wrap(mockedData));
+      ByteBuffer buf2 = ByteBuffer.wrap(mockedData);
+      while (buf2.hasRemaining()) {
+        channel.write(buf2);
+      }
     }
     originFileLen = channel.size();
     fileInfo.getChunkOffsets().add(originFileLen);
@@ -156,14 +162,14 @@ public class PartitionFilesSorterSuiteJ {
     PartitionFilesSorter partitionFilesSorter =
         new PartitionFilesSorter(MemoryTracker.instance(), conf, new WorkerSource(conf));
     partitionFilesSorter.initSortedShuffleFiles("application-1-1");
-    partitionFilesSorter.updateSortedShuffleFiles("application-1-1", "0-0-1");
-    partitionFilesSorter.updateSortedShuffleFiles("application-1-1", "0-0-2");
-    partitionFilesSorter.updateSortedShuffleFiles("application-1-1", "0-0-3");
+    partitionFilesSorter.updateSortedShuffleFiles("application-1-1", "0-0-1", 0);
+    partitionFilesSorter.updateSortedShuffleFiles("application-1-1", "0-0-2", 0);
+    partitionFilesSorter.updateSortedShuffleFiles("application-1-1", "0-0-3", 0);
     partitionFilesSorter.initSortedShuffleFiles("application-2-1");
-    partitionFilesSorter.updateSortedShuffleFiles("application-2-1", "0-0-1");
-    partitionFilesSorter.updateSortedShuffleFiles("application-2-1", "0-0-2");
+    partitionFilesSorter.updateSortedShuffleFiles("application-2-1", "0-0-1", 0);
+    partitionFilesSorter.updateSortedShuffleFiles("application-2-1", "0-0-2", 0);
     partitionFilesSorter.initSortedShuffleFiles("application-3-1");
-    partitionFilesSorter.updateSortedShuffleFiles("application-3-1", "0-0-1");
+    partitionFilesSorter.updateSortedShuffleFiles("application-3-1", "0-0-1", 0);
     partitionFilesSorter.deleteSortedShuffleFiles("application-2-1");
     partitionFilesSorter.close();
     PartitionFilesSorter partitionFilesSorter2 =
